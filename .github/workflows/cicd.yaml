@@ -1,0 +1,52 @@
+name: Hotstar Project CI/CD
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ap-south-2
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: 📦 Install Dependencies
+        run: npm install
+
+      - name: ⚙ Build React App
+        run: CI=false npm run build
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔑 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🐳 Build, Tag & Push Docker Image
+        run: |
+          IMAGE_TAG=$(date +%s)
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          docker build -t vcube-137:$IMAGE_TAG .
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          docker tag vcube-137:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.${AWS_REGION}.amazonaws.com/vcube-137:$IMAGE_TAG
+          docker push $ACCOUNT_ID.dkr.ecr.${AWS_REGION}.amazonaws.com/vcube-137:$IMAGE_TAG
+
+      
+
+      
